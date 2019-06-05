@@ -1,0 +1,20 @@
+{
+    "collab_server" : "",
+    "contents" : "#=================================================================\n# User's input\n#=================================================================\nrm(list = ls())\nlibrary(here)\nsetwd(here())\n\nsource('response_curves.R')\n\nfieldcorxn <- 0.08969818\n\n#=================================================================\n# Compute the entomological parameters based on temperature \n#=================================================================\n# Load emergence time-series: Emergence_TS from generate_emergence_file.R\n# The rest of the variables should adjust to the emergence time-series\noffsets = c(\"1.1\",\"1.35\",\"1.6\",\"1.7\",\"1.9\", \"2\")\no_f = offsets[6]\neval(parse(text = sprintf(\"load(\\\"../data/Emergence%s%s\\\")\",o_f,\".RData\")))\n# load('../data/Emergence.RData')\n\nEmergence_TS[Emergence_TS < 0] = 0\nIquitos.climate = read.csv('../data/Iquitos_Climate_Bobby.csv')\n# startIndex = which(Iquitos.climate$date == \"1999-02-28\") # Assuming it starts in that date, change if necessary\nstartIndex = which(Iquitos.climate$date == \"2000-01-01\") \ntemperature = Iquitos.climate$temperature_mean[startIndex:(startIndex + length(Emergence_TS)-1) ]\ntemp.mean <- mean(temperature,na.rm = TRUE)\ntemperature[is.na(temperature)] <- temp.mean\n\neip.mean = array(data = 0, dim = c(length(Emergence_TS),1))\neip.mu = array(data = 0, dim = c(length(Emergence_TS),1))\nbite.first = array(data = 0, dim = c(length(Emergence_TS),1))\nbite.second = array(data = 0, dim = c(length(Emergence_TS),1))\nmoz.death = array(data = 0, dim = c(length(Emergence_TS),1))\n\nfor (t in 1:length(Emergence_TS)){\n  eip.mu[t] = log(eip(temperature[t], 402, .1)$mu)\n  eip.mean[t] = eip(temperature[t], 402, .1)$mean\n  bite.first[t] = biterate.1st(temperature[t])\n  bite.second[t] = biterate.2nd(temperature[t])\n  moz.death[t] = mortalityRT(temperature[t],fieldcorxn)\n}\n\nEIP.data = data.frame(mu = eip.mu)\nmosquito.data = data.frame(EIP = eip.mu, firstBite = bite.first, secondBite = bite.second, death = moz.death, emergeFactor = Emergence_TS)\nwrite.csv(mosquito.data, sprintf(\"../output/AegyptiPars_%s_offset.csv\",o_f),row.names = FALSE, quote = FALSE)\n\n",
+    "created" : 1531943169553.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "497537465",
+    "id" : "B3C50BA8",
+    "lastKnownWriteTime" : 1531943190,
+    "last_content_update" : 1531943190663,
+    "path" : "/Volumes/GuidoSSD1/Dropbox/Guido_Postdoc/iquitos_abm_paper_2016/climate_PLOS_paper/scripts/generate_parameters_climate.R",
+    "project_path" : "generate_parameters_climate.R",
+    "properties" : {
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

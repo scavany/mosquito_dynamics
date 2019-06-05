@@ -1,0 +1,8 @@
+**/*.JPG
+**/*.jpg
+**/*.odt
+**/*.pdf
+**/*.RData
+data/*
+figures/*
+output/*
