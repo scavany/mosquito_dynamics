@@ -132,12 +132,20 @@ differentiate_timeseries = function(series, times){
   dS1 = dS2 = diff(series)/as.numeric(diff(times))
   dS1 = append(dS1, dS1[length(dS1)])
   dS2 = append(dS2, dS2[1], after=0)
-  # dS = (dS1+dS2)/2
+  dS = (dS1+dS2)/2
   #method 2
   # t = seq(1, length(times))
   # predict(sm.spline(t, series), t, 1)[,1]
 }
 
+emergence.ode <- function(t, x, params) {
+    with(as.list(c(x, params)), {
+        emergence.rate <- params[[1]][t]
+        mortality <- params[[2]][t]
+        dN = emergence.rate - mortality*N
+        return(list(c(dN)))
+    })
+}
 
 get_pupal_timeseries = function(adult_surf.in, adult_mortality.in, pupal_dev.in, times.in){
   N = na.spline(adult_surf.in)

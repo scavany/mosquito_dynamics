@@ -43,6 +43,8 @@ for (t in 1:length(DeathRate)){
 }
 
 EIP.data = data.frame(mu = eip.mu)
-mosquito.data = data.frame(EIP = eip.mu, firstBite = bite.first, secondBite = bite.second, eggDeath = egg_mortality, larvaeDeath = larval_mortality, pupalDeath = pupal_mortality,  mozDeath = DeathRate, extraDeath = extra_mortality_nn6,eggDev=egg_development_rate, larvalDev = larval_development_rate, pupalDev = pupal_development_rate, adultDev=eggs_per_gon_cycle*gonotrophic_cycle_rate/2)
+mosquito.data = data.frame(EIP = eip.mu, firstBite = bite.first, secondBite = bite.second, eggDeath = egg_mortality, larvaeDeath = larval_mortality, pupalDeath = pupal_mortality,  mozDeath = DeathRate, extraDeath = extra_mortality_nn6,eggDev=egg_development_rate, larvalDev = larval_development_rate, pupalDev = pupal_development_rate, adultDev=eggs_per_gon_cycle*gonotrophic_cycle_rate/2, emergeFactor=1)
 write.csv(mosquito.data, sprintf("../output/AegyptiPars_%s_offset.csv",o_f),row.names = FALSE, quote = FALSE)
 
+mosquito.data.simple = data.frame(EIP = eip.mu, firstBite = bite.first, secondBite = bite.second,  mozDeath = DeathRate, emergeFactor=emergence.ts*corrfactor.emergence)
+write.csv(mosquito.data.simple, sprintf("../output/AegyptiPars_%s_offset_simple.csv",o_f),row.names = FALSE, quote = FALSE)

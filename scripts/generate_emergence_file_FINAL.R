@@ -219,10 +219,50 @@ write.csv(adult_timeseries_trend*sum(initial_abundances), "../output/mosquito_ts
 #==============================
 load("early_surfaces.RData")
 
+cols <- c(red="#AE1A19", black="#252525", grey="#B1B1A6",
+          brown="#604B4A", lgrey="#D0D0D0", white="#FFFFFF")
+
 larval_capacity = 0.2 #set to Inf for no density dependence
 larval_power = 2
 eggs_per_gon_cycle = 63
 
+##get the simple one-step model first.
+emergence.ts <- differentiate_timeseries(adult_timeseries_trend, tvec) + DeathRate*adult_timeseries_trend
+emergence.ts.nn1 = pmax(emergence.ts, rep(0, length(emergence.ts)))
+emergence.ts.nn2 = exp(na.spline(log(emergence.ts)))
+emergence.ts.nn3 = emergence.ts
+i=0
+while (max(emergence.ts.nn3<0)){
+  i=i+1
+  print(i)
+  emergence.ts.nn3 = rollapply(emergence.ts, i, mean, partial = TRUE)
+}
+emergence.pop = matrix(data=0, nrow=length(adult_timeseries_trend), ncol=3)
+parms1 <- list(emergence.ts.nn1, DeathRate)
+parms2 <- list(emergence.ts.nn2, DeathRate)
+parms3 <- list(emergence.ts.nn3, DeathRate)
+emergence.pop[,1] = ode(y = c(N=adult_timeseries_trend[1]), times = seq(1,length(tvec),1), func = emergence.ode, parms = parms1)[,"N"]
+emergence.pop[,2] = ode(y = c(N=adult_timeseries_trend[1]), times = seq(1,length(tvec),1), func = emergence.ode, parms = parms2)[,"N"]
+emergence.pop[,3] = ode(y = c(N=adult_timeseries_trend[1]), times = seq(1,length(tvec),1), func = emergence.ode, parms = parms3)[,"N"]
+
+abs_errors = vector(length=3)
+for (i in 1:3){
+  abs_errors[i] = sum(abs(adult_timeseries_trend-emergence.pop[,i])/adult_timeseries_trend)
+}
+
+minimize_function = function(correction_factor, DeathRate, emergence.ts.nn3){
+    params = list(correction_factor*emergence.ts.nn3, DeathRate)
+    population_timeseries = ode(y = c(N=adult_timeseries_trend[1]), times = seq(1,length(tvec),1), func = emergence.ode, parms = params)
+  return(sum(abs(adult_timeseries_trend-population_timeseries[,"N"])/adult_timeseries_trend))
+}
+
+corrfactor.optimized.emergence = optimize(minimize_function, DeathRate,
+                                          emergence.ts.nn3, interval=c(0.8,1.25))
+
+corrfactor.emergence = corrfactor.optimized.emergence$minimum
+corrfactor.emergence <- 0.9880937
+
+##now the full model, withe early stages
 pupal_timeseries = get_pupal_timeseries(adult_timeseries_trend, DeathRate, pupal_development_rate, tvec)
 pupal_timeseries_nn2 = pmax(pupal_timeseries, rep(0, length(pupal_timeseries)))
 pupal_timeseries_nn4 = exp(na.spline(log(pupal_timeseries)))
@@ -262,8 +302,45 @@ while (max(extra_mortality_nn6 <0)){
   extra_mortality_nn6 = rollapply(extra_mortality_nn6_initial, i, mean, partial = TRUE)
 }
 
-# 
-# check_larvae = (differentiate_timeseries(pupal_timeseries_nn6, tvec) + (pupal_mortality+extra_mortality_nn6+pupal_development_rate)*pupal_timeseries_nn6)/larval_development_rate
+##plot mortalities
+pupal.mort.summary <- data.frame("envt"=pupal_mortality, "extr"=extra_mortality_nn6)
+tot.pupal.mort <- apply(pupal.mort.summary, 1, sum)
+larval.mort.summary <- data.frame("envt"=pupal_mortality, "extr"=extra_mortality_nn6,
+                                  "dens"=larval_timeseries_nn6^larval_power/larval_capacity)
+tot.larval.mort <- apply(larval.mort.summary, 1, sum)
+
+pdf("../figures/pupal_mortality_source.pdf")
+plot(x=dvec, y=rep(-1, length(dvec)),
+     col=cols["grey"], type='l', ylim=c(0,1),
+     xlab="Year", ylab="Proportion", cex.axis=1.3, cex.lab=1.3)
+polygon(x=c(dvec, rev(dvec)),
+        y=c(rep(0, length(dvec)), rev(pupal.mort.summary$extr/tot.pupal.mort)),
+        border=NA, col=cols["grey"])
+polygon(x=c(dvec, rev(dvec)),
+        y=c(pupal.mort.summary$extr/tot.pupal.mort, rev((pupal.mort.summary$envt+pupal.mort.summary$extr)/tot.pupal.mort)),
+        border=NA, col=cols["red"])
+legend(x=as.Date("2005-09-01"), y=0.58, legend=c("Temperature driven", "Additional"),
+       col=cols[c("red", "grey")], fill=cols[c("red", "grey")],cex=1.3)
+dev.off()
+
+pdf("../figures/larval_mortality_source.pdf")
+plot(x=dvec, y=rep(-1, length(dvec)),
+     col=cols["grey"], type='l', ylim=c(0,1),
+     xlab="Year", ylab="Proportion", cex.axis=1.3, cex.lab=1.3)
+polygon(x=c(dvec, rev(dvec)),
+        y=c(rep(0, length(dvec)), rev(larval.mort.summary$extr/tot.larval.mort)),
+        border=NA, col=cols["grey"])
+polygon(x=c(dvec, rev(dvec)),
+        y=c(larval.mort.summary$extr/tot.larval.mort, rev((larval.mort.summary$extr+larval.mort.summary$envt)/tot.larval.mort)),
+        border=NA, col=cols["red"])
+polygon(x=c(dvec, rev(dvec)),
+        y=c((larval.mort.summary$extr+larval.mort.summary$envt)/tot.larval.mort, rep(1, length(dvec))),
+        border=NA, col=cols["lgrey"])
+legend(x=as.Date("2005-09-01"), y=0.99, legend=c( "Density dependent","Temperature driven", "Additional"),
+       col=cols[c("lgrey","red", "grey")], fill=cols[c("lgrey","red", "grey")], cex=1.3)
+dev.off()
+
+## check_larvae = (differentiate_timeseries(pupal_timeseries_nn6, tvec) + (pupal_mortality+extra_mortality_nn6+pupal_development_rate)*pupal_timeseries_nn6)/larval_development_rate
 # summary(larval_timeseries_nn6/check_larvae)
 # check_extra_mortality = (larval_development_rate*larval_timeseries_nn6 - differentiate_timeseries(pupal_timeseries_nn6, tvec))/pupal_timeseries_nn6 - larval_mortality - pupal_mortality
 # summary(extra_mortality_nn6/check_extra_mortality)
@@ -299,30 +376,52 @@ minimize_function = function(correction_factor, DeathRate, pupal_mortality, larv
 correction_factor_optimized = optimize(minimize_function, DeathRate, pupal_mortality, larval_mortality, egg_mortality, extra_mortality_nn6, adult_development_rate, pupal_development_rate, larval_development_rate, egg_development_rate,  larval_capacity, larval_power, eggs_per_gon_cycle, interval=c(0.8,1.25))
 
 correction_factor = correction_factor_optimized$minimum
+
+correction_factor <- 1.056433
 params = list(egg_development_rate, larval_development_rate, pupal_development_rate, gonotrophic_cycle_rate, egg_mortality, larval_mortality, pupal_mortality, extra_mortality_nn6, DeathRate, larval_capacity, larval_power, correction_factor*eggs_per_gon_cycle)
 #population_timeseries = ode(y = initial_conditions, times = seq(1,length(tvec),1), func = full_model_ode_2, parms = params)
-plot(dvec, population_timeseries[,2], ylim = c(0,1.8))
-lines(dvec,adult_timeseries_trend, col='red')
-#correction factor is 1.05 - probably can do without it?
 
-#==================================================
+pdf("../figures/abundance_vs_time.pdf", width=10.5, height=7)
+plot(dvec, adult_timeseries_trend*sum(initial_abundances), ylim = c(0,1.8*sum(initial_abundances)),
+     col=cols["grey"], fg=cols["black"],
+     xlab="Year", ylab="Abundance", cex.axis=1.3, cex.lab=1.3)
+lines(dvec,population_timeseries[,2]*sum(initial_abundances), col=cols['red'])
+legend("topright", legend=c("GAM prediction","ODE calibration"), col=cols[c("grey", "red")], lty = c(NA,  "solid"),
+       pch=c("o", NA), cex=1.3)
+dev.off()
+                                        
+
+pdf("../figures/residuals.pdf")
+plot(dvec, (population_timeseries[,"N"]-adult_timeseries_trend)*sum(initial_abundances),
+     col=cols["black"], fg=cols["black"],
+     xlab="Year", ylab="Residual", type='l')
+dev.off()
+
+##==================================================
 # comparing with and without spraying -------------
 #==================================================
-spraying_thoroughness = 0.1
+spraying_thoroughness_vec = c(0.1)
 spray_today = vector(length = length(DeathRate))
-start_day = 250; end_day= start_day+90
+start_day = 250; end_day= start_day+21
 spray_today[start_day:end_day] = TRUE 
 
 initial_conditions = c(E =egg_timeseries[1], L = larval_timeseries_nn6[1], P = pupal_timeseries_nn6[1], N = adult_timeseries_trend[1])
 params_no_spraying = list(egg_development_rate, larval_development_rate, pupal_development_rate, gonotrophic_cycle_rate, egg_mortality, larval_mortality, pupal_mortality, extra_mortality_nn6, DeathRate, larval_capacity, larval_power, correction_factor*eggs_per_gon_cycle)
-params_spraying = list(egg_development_rate, larval_development_rate, pupal_development_rate, gonotrophic_cycle_rate, egg_mortality, larval_mortality, pupal_mortality, extra_mortality_nn6, DeathRate+spraying_thoroughness*spray_today, larval_capacity, larval_power, correction_factor*eggs_per_gon_cycle)
 population_timeseries_no_spraying = ode(y = initial_conditions, times = seq(1,length(tvec),1), func = full_model_ode_2, parms = params_no_spraying, method = 'radau')[,"N"]
-population_timeseries_spraying = ode(y = initial_conditions, times = seq(1,length(tvec),1), func = full_model_ode_2, parms = params_spraying, method = 'radau')[,"N"]
 
-plot(seq(1,length(tvec),1)[200:600], population_timeseries_spraying[200:600], type='l', ylim=c(0,1.5))
-lines(seq(1,length(tvec),1)[200:600], population_timeseries_no_spraying[200:600], col='blue')
-abline(v=start_day, col='green')
-abline(v=end_day, col='red')
+pdf("../figures/spraying_fig_ode.pdf")
+plot(seq(1,length(tvec),1)[200:600], population_timeseries_no_spraying[200:600],
+     col=cols['red'], lwd=1.5, ylim=c(0,1.7), type='l', xlab="Day", ylab="Normalized abundance")
+for (spraying_thoroughness in spraying_thoroughness_vec) {
+    params_spraying = list(egg_development_rate, larval_development_rate, pupal_development_rate, gonotrophic_cycle_rate, egg_mortality, larval_mortality, pupal_mortality, extra_mortality_nn6, DeathRate+spraying_thoroughness*spray_today, larval_capacity, larval_power, correction_factor*eggs_per_gon_cycle)
+    population_timeseries_spraying = ode(y = initial_conditions, times = seq(1,length(tvec),1), func = full_model_ode_2, parms = params_spraying, method = 'radau')[,"N"]
+    lines(seq(1,length(tvec),1)[200:600], population_timeseries_spraying[200:600], col=cols['black'], lwd=1.5)
+}
+abline(v=start_day, col=cols['grey'])
+abline(v=end_day, col=cols['grey'])
+legend(x=412, y=0.3, legend=c("Abundance, no spraying","Abundance, spraying","Start/end spraying"),
+       col=cols[c("red", "black", "grey")], lty=rep("solid", 3))
+dev.off()
 
 #==================================================
 # trying a prediction with log equations
@@ -352,9 +451,10 @@ initial_conditions = c(E =1e-10, L = 0, P = 0, N = 0)
 params = list(egg_development_rate, larval_development_rate, pupal_development_rate, gonotrophic_cycle_rate, egg_mortality, larval_mortality, pupal_mortality, extra_mortality_nn6, DeathRate, larval_capacity, larval_power, eggs_per_gon_cycle)
 population_timeseries = ode(y = initial_conditions, times = seq(1,length(tvec),1), func = full_model_ode_2, parms = params, method = 'radau')[,"N"]
 
-plot(seq(1,length(tvec),1)[1:365], population_timeseries[1:365], type='l')
-lines(adult_timeseries_trend, col='blue')
-
+##pdf("../figures/rebound_from_zero.pdf")
+plot(seq(1,length(tvec),1)[1:365], population_timeseries[1:365], type='l', col=cols["red"])
+points(adult_timeseries_trend, col=cols['black'])
+##dev.off()
 #==================================================
 # does the density dependence maintain spatial heterogeneity? 
 #=================================================
@@ -368,12 +468,13 @@ params_min = list(egg_development_rate, larval_development_rate, pupal_developme
 population_timeseries_max = ode(y = initial_conditions, times = seq(1,length(tvec),1), func = full_model_ode_2, parms = params_max, method = 'radau')[,"N"]
 population_timeseries_min = ode(y = initial_conditions, times = seq(1,length(tvec),1), func = full_model_ode_2, parms = params_min, method = 'radau')[,"N"]
 
-png("/home/sean/Desktop/larval_capacity_equilibrium.png")
-plot(tvec[1:1000], population_timeseries_max[1:1000], type='l', ylim = c(0,30))
-lines(tvec[1:1000], adult_timeseries_trend[1:1000]*maxN0, col='black', lty='dashed')
-lines(tvec[1:1000], adult_timeseries_trend[1:1000]*minN0, col='red', lty='dashed')
-lines(tvec[1:1000], population_timeseries_min[1:1000], col='red')
-legend(x=as.Date("2000-01-01"), y=8, legend=c("largest location, prediction","largest location, data","smallest location, prediction","smallest location, data"), col=c("black", "black", "red", "red"), lty = c("solid", "dashed", "solid", "dashed"))
+pdf("../figures/larval_capacity_equilibrium.pdf", width=10.5, height=7)
+plot(tvec[1:1250], population_timeseries_max[1:1250], type='l', col=cols["black"], ylim = c(0,35),
+     xlab="Year", ylab="Abundance", cex.axis=1.3, cex.lab=1.3)
+lines(tvec[1:1250], adult_timeseries_trend[1:1250]*maxN0, col=cols['black'], lty='dashed')
+lines(tvec[1:1250], adult_timeseries_trend[1:1250]*minN0, col=cols['red'], lty='dashed')
+lines(tvec[1:1250], population_timeseries_min[1:1250], col=cols['red'])
+legend(x=as.Date("2002-01-01"), y=35, legend=c("largest location, ODE","largest location, GAM","smallest location, ODE","smallest location, GAM"), col=cols[c("black", "black", "red", "red")], lty = c("solid", "dashed", "solid", "dashed"), cex=1.3)
 dev.off()
 
 
@@ -402,5 +503,7 @@ close(fileName)
 
 # The time-varying parameters are done in generate_parameters_climate. Save them here:
 eggs_per_gon_cycle  <- eggs_per_gon_cycle*correction_factor
-save(egg_development_rate, larval_development_rate, pupal_development_rate, gonotrophic_cycle_rate, egg_mortality, larval_mortality, pupal_mortality, DeathRate, extra_mortality_nn6, eggs_per_gon_cycle, file="time_dependent_series.RData")
+emergence.ts <- emergence.ts.nn3*corrfactor.emergence
+
+save(egg_development_rate, larval_development_rate, pupal_development_rate, gonotrophic_cycle_rate, egg_mortality, larval_mortality, pupal_mortality, DeathRate, extra_mortality_nn6, eggs_per_gon_cycle, emergence.ts, file="time_dependent_series.RData")
 
