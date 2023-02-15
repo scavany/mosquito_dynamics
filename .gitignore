@@ -3,6 +3,9 @@
 **/*.odt
 **/*.pdf
 **/*.RData
+**/*.RDataTmp
+**/*.RDataTmp1
+**/*.RDataTmp2
 data/*
 figures/*
 output/*
