@@ -1,5 +1,5 @@
 #=============================================================================
-# Author: Guido Espana
+# Author: Guido Espana & Sean Cavany
 # 25/10/2016 
 # Functions for Emergence Rates Generation
 #

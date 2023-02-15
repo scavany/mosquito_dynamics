@@ -19,17 +19,6 @@
 #======================================================================================
 rm(list = ls())
 
-# Set your working directory to the scripts folder
-library(here)
-setwd(here())
-
-setwd("/home/sean/Documents/zika_project/mosquito_dynamics/scripts/")
-
-require(mgcv)
-require(scam)
-require(deSolve)
-require(pspline)
-library(doParallel)
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(dlnm,
                mgcv,
@@ -46,7 +35,18 @@ pacman::p_load(dlnm,
                raster,
                gridExtra,
                splines,
-               zoo)
+               zoo,
+               doParallel,
+               pspline,
+               viridis,
+               deSolve,
+               scam,
+               mgcv,
+               here)
+
+# Set your working directory to the scripts folder
+setwd(here())
+setwd("/home/sean/Documents/zika_project/mosquito_dynamics/scripts/")
 
 source('./generate_emergence_functions_FINAL.R')
 source('response_curves.R')
@@ -78,8 +78,8 @@ nlandusetypes = length(col.names)
 colClasses = c(rep("numeric",nlandusetypes))
 
 ProdR = read.table(text = "",
-                    colClasses = colClasses,
-                    col.names = col.names)  # table of landuseratios
+                   colClasses = colClasses,
+                   col.names = col.names)  # table of landuseratios
 ProdR[1,] = LandUseRatios  
 Houses = which(Locations$landuse=="HOUSE")
 
@@ -125,13 +125,29 @@ sunexp = 0.1
 water.temp.max = 15.03 + 0.27*temperature.min + 0.01*temperature.max^2 + 7.69*sunexp^2
 water.temp.min = 5.02 - 1.36*sunexp + 0.81*temperature.min + 0.001*temperature.max^2
 water.temp.mean = (water.temp.min + water.temp.max)/2
+
+## Plot the temperature time series (mean and max)
+pdf("../figures/temperature_time_series.pdf")
+par(mfrow=c(2,3),mar=c(4.1,4.1,1.1,1.1))
+plot(seq(as.Date("2000-01-01"),length.out=length(temperature),by="1 day"),temperature,
+     xlab="Year",ylab=expression("Daily mean air temperature ("*~degree*C*")"), las=1, xaxs="i",yaxs="i", bty="n",type='l')
+plot(seq(as.Date("2000-01-01"),length.out=length(temperature.max),by="1 day"),temperature.max,
+     xlab="Year",ylab=expression("Daily maximum air temperature ("*~degree*C*")"), las=1, xaxs="i",yaxs="i", bty="n",type='l')
+plot(seq(as.Date("2000-01-01"),length.out=length(temperature.min),by="1 day"),temperature.min,
+     xlab="Year",ylab=expression("Daily minimum air temperature ("*~degree*C*")"), las=1, xaxs="i",yaxs="i", bty="n",type='l')
+plot(seq(as.Date("2000-01-01"),length.out=length(water.temp.mean),by="1 day"),water.temp.mean,
+     xlab="Year",ylab=expression("Daily mean water temperature ("*~degree*C*")"), las=1, xaxs="i",yaxs="i", bty="n",type='l')
+plot(seq(as.Date("2000-01-01"),length.out=length(water.temp.max),by="1 day"),water.temp.max,
+     xlab="Year",ylab=expression("Daily maximum water temperature ("*~degree*C*")"), las=1, xaxs="i",yaxs="i", bty="n",type='l')
+plot(seq(as.Date("2000-01-01"),length.out=length(water.temp.min),by="1 day"),water.temp.min,
+     xlab="Year",ylab=expression("Daily minimum water temperature ("*~degree*C*")"), las=1, xaxs="i",yaxs="i", bty="n",type='l')
+dev.off()
 #======================================================================================
 # obtain parameters governing death and development ------------
 #======================================================================================
 development_params = read.csv('../data/development_params.csv', sep = '\t', row.names=1)
 mortality_thresholds = read.csv('../data/mortality_thresholds.csv', sep = '\t', row.names=1)
 
-#Note that egg development is just used in the first time step, the full time series is estimated from the ODE system
 egg_development_rate = calculate_development_rate_timeseries(development_params$eggs, water.temp.mean)*length(dvec)/length(tvec)
 larval_development_rate = calculate_development_rate_timeseries(development_params$pupae, water.temp.mean)*length(dvec)/length(tvec)
 pupal_development_rate = calculate_development_rate_timeseries(development_params$larvae, water.temp.mean)*length(dvec)/length(tvec)
@@ -308,36 +324,39 @@ tot.pupal.mort <- apply(pupal.mort.summary, 1, sum)
 larval.mort.summary <- data.frame("envt"=pupal_mortality, "extr"=extra_mortality_nn6,
                                   "dens"=larval_timeseries_nn6^larval_power/larval_capacity)
 tot.larval.mort <- apply(larval.mort.summary, 1, sum)
+cols <- plasma(3)
 
-pdf("../figures/pupal_mortality_source.pdf")
+tiff(paste0("../figures/pupal_mortality_source.tif"),
+     res=600, width=4152, height=4152, compression="lzw")
 plot(x=dvec, y=rep(-1, length(dvec)),
-     col=cols["grey"], type='l', ylim=c(0,1),
-     xlab="Year", ylab="Proportion", cex.axis=1.3, cex.lab=1.3)
+     col=cols[1], type='l', ylim=c(0,1),
+     xlab="Year", ylab="Proportion")
 polygon(x=c(dvec, rev(dvec)),
         y=c(rep(0, length(dvec)), rev(pupal.mort.summary$extr/tot.pupal.mort)),
-        border=NA, col=cols["grey"])
+        border=NA, col=cols[1])
 polygon(x=c(dvec, rev(dvec)),
         y=c(pupal.mort.summary$extr/tot.pupal.mort, rev((pupal.mort.summary$envt+pupal.mort.summary$extr)/tot.pupal.mort)),
-        border=NA, col=cols["red"])
+        border=NA, col=cols[2])
 legend(x=as.Date("2005-09-01"), y=0.58, legend=c("Temperature driven", "Additional"),
-       col=cols[c("red", "grey")], fill=cols[c("red", "grey")],cex=1.3)
+       col=cols[c(2, 1)], fill=cols[c(2, 1)])
 dev.off()
 
-pdf("../figures/larval_mortality_source.pdf")
+tiff(paste0("../figures/larval_mortality_source.tif"),
+     res=600, width=4152, height=4152, compression="lzw")
 plot(x=dvec, y=rep(-1, length(dvec)),
-     col=cols["grey"], type='l', ylim=c(0,1),
-     xlab="Year", ylab="Proportion", cex.axis=1.3, cex.lab=1.3)
+     col=cols[1], type='l', ylim=c(0,1),
+     xlab="Year", ylab="Proportion")
 polygon(x=c(dvec, rev(dvec)),
         y=c(rep(0, length(dvec)), rev(larval.mort.summary$extr/tot.larval.mort)),
-        border=NA, col=cols["grey"])
+        border=NA, col=cols[1])
 polygon(x=c(dvec, rev(dvec)),
         y=c(larval.mort.summary$extr/tot.larval.mort, rev((larval.mort.summary$extr+larval.mort.summary$envt)/tot.larval.mort)),
-        border=NA, col=cols["red"])
+        border=NA, col=cols[2])
 polygon(x=c(dvec, rev(dvec)),
         y=c((larval.mort.summary$extr+larval.mort.summary$envt)/tot.larval.mort, rep(1, length(dvec))),
-        border=NA, col=cols["lgrey"])
+        border=NA, col=cols[3])
 legend(x=as.Date("2005-09-01"), y=0.99, legend=c( "Density dependent","Temperature driven", "Additional"),
-       col=cols[c("lgrey","red", "grey")], fill=cols[c("lgrey","red", "grey")], cex=1.3)
+       col=cols[3:1], fill=cols[3:1])
 dev.off()
 
 ## check_larvae = (differentiate_timeseries(pupal_timeseries_nn6, tvec) + (pupal_mortality+extra_mortality_nn6+pupal_development_rate)*pupal_timeseries_nn6)/larval_development_rate
@@ -381,20 +400,71 @@ correction_factor <- 1.056433
 params = list(egg_development_rate, larval_development_rate, pupal_development_rate, gonotrophic_cycle_rate, egg_mortality, larval_mortality, pupal_mortality, extra_mortality_nn6, DeathRate, larval_capacity, larval_power, correction_factor*eggs_per_gon_cycle)
 #population_timeseries = ode(y = initial_conditions, times = seq(1,length(tvec),1), func = full_model_ode_2, parms = params)
 
-pdf("../figures/abundance_vs_time.pdf", width=10.5, height=7)
-plot(dvec, adult_timeseries_trend*sum(initial_abundances), ylim = c(0,1.8*sum(initial_abundances)),
-     col=cols["grey"], fg=cols["black"],
-     xlab="Year", ylab="Abundance", cex.axis=1.3, cex.lab=1.3)
-lines(dvec,population_timeseries[,2]*sum(initial_abundances), col=cols['red'])
-legend("topright", legend=c("GAM prediction","ODE calibration"), col=cols[c("grey", "red")], lty = c(NA,  "solid"),
-       pch=c("o", NA), cex=1.3)
-dev.off()
-                                        
 
-pdf("../figures/residuals.pdf")
-plot(dvec, (population_timeseries[,"N"]-adult_timeseries_trend)*sum(initial_abundances),
-     col=cols["black"], fg=cols["black"],
-     xlab="Year", ylab="Residual", type='l')
+##import abm output
+abm.out <- read.csv("../scripts/sim_00020_immature.csv")["Adults"]
+abm.out.irs <- read.csv("../scripts/sim_00010_immature.csv")["Adults"]
+abm.out.ulv <- read.csv("../scripts/sim_00000_immature.csv")["Adults"]
+cols <- plasma(4, alpha=c(0.2,rep(1,2)))
+
+tiff("../figures/abundance_vs_time.tif",
+     res=600, width=4152, height=4152/2, compression="lzw")
+par(mar=c(5.1,5.1,4.1,2.1))
+plot(dvec, adult_timeseries_trend*sum(initial_abundances), ylim = c(0,1.8*sum(initial_abundances)),
+     col=cols[1], type="l",lwd=2,xaxs="i",yaxs="i",bty="n",las=1,xlim=c(as.Date("2000-01-01"),as.Date("2011-01-01")),
+     xlab="Year", ylab="",xaxt="n")
+axis(1,label=seq(2000,2011,1),at=seq(as.Date("2000-01-01"),as.Date("2011-01-01"),by="1 year"))
+mtext("Abundance",2,4)
+lines(dvec,population_timeseries[,2]*sum(initial_abundances), col=cols[2], lwd=2)
+lines(dvec,abm.out[,1], col=cols[3],  lwd=2)
+legend("topright", legend=c("GAM prediction","ODE calibration", "ABM output"),
+       col=cols[c(1,2,3)], lty = "solid",
+       lwd=c(2),bty="n")
+dev.off()
+
+print(cor(adult_timeseries_trend*sum(initial_abundances),population_timeseries[,2]*sum(initial_abundances)))
+print(cor(adult_timeseries_trend*sum(initial_abundances),abm.out[,1]))
+print(cor(population_timeseries[,2]*sum(initial_abundances),abm.out[,1]))
+
+##RMSD
+rmsd.ode <- sum(initial_abundances)*(sum((adult_timeseries_trend-population_timeseries[,2])^2)/length(adult_timeseries_trend))^0.5
+rmsd.abm <- (sum((sum(initial_abundances)*adult_timeseries_trend-abm.out[,1])^2)/length(adult_timeseries_trend))^0.5
+rmsd.odeabm <- (sum((sum(initial_abundances)*population_timeseries[,2]-abm.out[,1])^2)/length(adult_timeseries_trend))^0.5
+
+cols.spray <- plasma(9)
+sday <- 366; eday <- 365*4
+#ABM spraying!
+tiff("../figures/abundance_following_spraying.tif",
+     res=600, width=4152, height=4152/2, compression="lzw")
+par(mar=c(5.1,5.1,4.1,2.1))
+plot(dvec[sday:eday], abm.out.ulv[sday:eday,1], ylim = c(0,1.8*sum(initial_abundances)),
+     col=cols.spray[1], las=1, bty="n",xaxs="i",yaxs="i",
+     xlab="Year", ylab="",type='l', lwd=2,
+     xlim=c(as.Date("2001-01-01"),as.Date("2004-01-01")))
+lines(dvec[sday:eday],abm.out.irs[sday:eday,1], col=cols.spray[4], lwd=2)
+lines(dvec[sday:eday],abm.out[sday:eday,1], col=cols.spray[7], lwd=2)
+mtext("Abundance",2,4)
+legend("topright", legend=c("TIRS","ULV", "None"), col=cols.spray[c(1,4,7)],
+       lty = c("solid"),lwd=c(2,2,2),bty="n")
+dev.off()
+
+##Rebound times - remember the variables are mislabeled (correct this)
+(head(which(((abm.out[,1]-abm.out.irs[,1])/abm.out[,1] > 0)
+           & ((abm.out[,1]-abm.out.irs[,1])/abm.out[,1] < 0.01))) - 731)*12/365
+(head(which(((abm.out[,1]-abm.out.irs[,1])/abm.out[,1] > 0)
+           & ((abm.out[,1]-abm.out.irs[,1])/abm.out[,1] < 0.1))) - 731)*12/365
+(head(which(((abm.out[,1]-abm.out.ulv[,1])/abm.out[,1] > 0)
+           & ((abm.out[,1]-abm.out.ulv[,1])/abm.out[,1] < 0.01))) - 731)*12/365
+(head(which(((abm.out[,1]-abm.out.ulv[,1])/abm.out[,1] > 0)
+           & ((abm.out[,1]-abm.out.ulv[,1])/abm.out[,1] < 0.1))) - 731)*12/365
+
+tiff("../figures/residuals.tif",
+     res=600, width=4152, height=4152, compression="lzw")
+plot(dvec, (population_timeseries[,2]-adult_timeseries_trend)*sum(initial_abundances),
+     col=cols[2],
+     xlab="Year", ylab="Residual", type='l', lwd=3)
+lines(dvec, abm.out[,1]-adult_timeseries_trend*sum(initial_abundances),
+      col=cols[3], lwd=3, lty="dotted")
 dev.off()
 
 ##==================================================
@@ -451,7 +521,8 @@ initial_conditions = c(E =1e-10, L = 0, P = 0, N = 0)
 params = list(egg_development_rate, larval_development_rate, pupal_development_rate, gonotrophic_cycle_rate, egg_mortality, larval_mortality, pupal_mortality, extra_mortality_nn6, DeathRate, larval_capacity, larval_power, eggs_per_gon_cycle)
 population_timeseries = ode(y = initial_conditions, times = seq(1,length(tvec),1), func = full_model_ode_2, parms = params, method = 'radau')[,"N"]
 
-##pdf("../figures/rebound_from_zero.pdf")
+##tiff("../figures/rebound_from_zero.tif",
+     res=600, width=4152, height=4152, compression="lzw")
 plot(seq(1,length(tvec),1)[1:365], population_timeseries[1:365], type='l', col=cols["red"])
 points(adult_timeseries_trend, col=cols['black'])
 ##dev.off()
@@ -468,13 +539,16 @@ params_min = list(egg_development_rate, larval_development_rate, pupal_developme
 population_timeseries_max = ode(y = initial_conditions, times = seq(1,length(tvec),1), func = full_model_ode_2, parms = params_max, method = 'radau')[,"N"]
 population_timeseries_min = ode(y = initial_conditions, times = seq(1,length(tvec),1), func = full_model_ode_2, parms = params_min, method = 'radau')[,"N"]
 
-pdf("../figures/larval_capacity_equilibrium.pdf", width=10.5, height=7)
-plot(tvec[1:1250], population_timeseries_max[1:1250], type='l', col=cols["black"], ylim = c(0,35),
-     xlab="Year", ylab="Abundance", cex.axis=1.3, cex.lab=1.3)
-lines(tvec[1:1250], adult_timeseries_trend[1:1250]*maxN0, col=cols['black'], lty='dashed')
-lines(tvec[1:1250], adult_timeseries_trend[1:1250]*minN0, col=cols['red'], lty='dashed')
-lines(tvec[1:1250], population_timeseries_min[1:1250], col=cols['red'])
-legend(x=as.Date("2002-01-01"), y=35, legend=c("largest location, ODE","largest location, GAM","smallest location, ODE","smallest location, GAM"), col=cols[c("black", "black", "red", "red")], lty = c("solid", "dashed", "solid", "dashed"), cex=1.3)
+tiff("../figures/larval_capacity_equilibrium.tif",
+     res=600, width=4152, height=4152, compression="lzw")
+plot(tvec[1:1250], population_timeseries_max[1:1250], type='l', col=cols[2], ylim = c(0,35),
+     xlab="Year", ylab="Abundance", lwd=2)
+lines(tvec[1:1250], adult_timeseries_trend[1:1250]*maxN0, col=cols[1], lty='solid', lwd=2)
+lines(tvec[1:1250], adult_timeseries_trend[1:1250]*minN0, col=cols[1], lty='dotted', lwd=2)
+lines(tvec[1:1250], population_timeseries_min[1:1250], col=cols[2], lty="dotted", lwd=2)
+legend(x=as.Date("2002-01-01"), y=35, legend=c("largest location, ODE","largest location, GAM",
+                                               "smallest location, ODE","smallest location, GAM"),
+       col=cols[c(2,2,1,1)], lty = c("solid", "dashed", "solid", "dashed"), lwd=rep(2,4))
 dev.off()
 
 
