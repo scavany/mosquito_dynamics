@@ -15,7 +15,7 @@ library(rgeos)
 library(maptools)
 library(fields)
 
-setwd("~/Documents/zika_project/mosquito_dynamics/abm_analysis")
+setwd("./abm_analysis")
 sim.nums <- c(tirs="00000", ulv="00010", none="00020")
 sim.names <- names(sim.nums)
 
@@ -113,7 +113,7 @@ for (i in seq(length(age.sorted.list))) {
 
 
 ##### needs expanding to do each one, and differences. Zone-level heterogeneity.
-setwd("~/Documents/zika_project/mosquito_dynamics/abm_analysis")
+setwd("./abm_analysis")
 spatial.patterns <- array(dim=c(3, 41, 35)) 
 dates <- seq(as.Date("2000-01-01"), as.Date("2010-12-31"), "1 day")[seq(1,4018,100)]
 for (sim.num in sim.nums) {
@@ -235,18 +235,10 @@ for (sim.num in sim.nums) {
     }
 }
 
-## ##k-functions
-## setwd("~/Desktop/moz_age_dist_het")
-## xyz <- read.csv("heterogeneity_sim_00020_day_1000.csv")
-## iquitos <- readOGR("/home/sean/Documents/zika_project/shape_files_2/zonas35_ge.shp")
-## iquitos.ppp <- ppp(xyz$xCor, xyz$yCor, window=as.owin(iquitos))
-## marks(iquitos.ppp) <- xyz$mozzes
-## plot(Kest(iquitos.ppp))
-## plot(Kmulti(iquitos.ppp, rep(T, npoints(iquitos.ppp)),rep(T, npoints(iquitos.ppp))))
 
 
 ##### Mapping abundance and (deprecated) clustering statistic
-setwd("~/Documents/zika_project/mosquito_dynamics/abm_analysis/moz_age_dist_het")
+setwd("./abm_analysis/moz_age_dist_het")
 map.days <- seq(0,4018,100)
 dates <- seq(as.Date("2000-01-01"), as.Date("2010-12-31"), "1 day")[seq(1,4018,100)]
 xyz <- read.csv("heterogeneity_sim_00000_day_0.csv")
@@ -260,7 +252,7 @@ z.lims <- c(0,17)
 ## G30s <- localG(xyz$mozzes, nb2listw(include.self(nb30),
 ##                                   style="B"))
 
-iquitos <- readOGR("/home/sean/Documents/zika_project/shape_files_2/zonas35_ge.shp")
+iquitos <- readOGR("./shape_files_2/zonas35_ge.shp")
 temp.grid <- makegrid(iquitos, n=100000)
 iquitos.grid.full <- SpatialPoints(temp.grid, proj4string = CRS(proj4string(iquitos)))
 iquitos.grid <- iquitos.grid.full[iquitos,]
@@ -396,14 +388,14 @@ for (sim in names(sim.nums)) {
 }
 
 ##### Mapping normalized abundance
-setwd("~/Documents/zika_project/mosquito_dynamics/abm_analysis/moz_age_dist_het")
+setwd("./abm_analysis/moz_age_dist_het")
 map.days <- seq(0,4018,100)
 dates <- seq(as.Date("2000-01-01"), as.Date("2010-12-31"), "1 day")[seq(1,4018,100)]
 xyz <- read.csv("heterogeneity_sim_00000_day_0.csv")
 xycoords <- cbind(xyz$xCor, xyz$yCor)
 z.lims <- c(0,17)
 
-iquitos <- readOGR("/home/sean/Documents/zika_project/shape_files_2/zonas35_ge.shp")
+iquitos <- readOGR("./shape_files_2/zonas35_ge.shp")
 temp.grid <- makegrid(iquitos, n=100000)
 iquitos.grid.full <- SpatialPoints(temp.grid, proj4string = CRS(proj4string(iquitos)))
 iquitos.grid <- iquitos.grid.full[iquitos,]
@@ -454,7 +446,7 @@ for (sim in names(sim.nums)) {
 }
 
 ## Do each timept for video
-iquitos <- readOGR("/home/sean/Documents/zika_project/shape_files_2/zonas35_ge.shp")
+iquitos <- readOGR("./shape_files_2/zonas35_ge.shp")
 temp.grid <- makegrid(iquitos, n=100000)
 iquitos.grid.full <- SpatialPoints(temp.grid, proj4string = CRS(proj4string(iquitos)))
 iquitos.grid <- iquitos.grid.full[iquitos,]
@@ -480,7 +472,7 @@ for (day in seq(0,4018,100)) {
         }
     }
 
-    tiff(filename = paste0("~/Desktop/moz_age_dist_het/G120s_",
+    tiff(filename = paste0("./moz_age_dist_het/G120s_",
                            day,".tif"),
           width = 4000, height = 4000,
          compression = "lzw", res = 600)
@@ -490,8 +482,8 @@ for (day in seq(0,4018,100)) {
 }
 
 ##try IRS with day 800 and/or 900 - the ones following spraying.
-setwd("~/Desktop/moz_age_dist_het/")
-iquitos <- readOGR("/home/sean/Documents/zika_project/shape_files_2/zonas35_ge.shp")
+setwd("./moz_age_dist_het/")
+iquitos <- readOGR("./shape_files_2/zonas35_ge.shp")
 temp.grid <- makegrid(iquitos, n=100000)
 iquitos.grid.full <- SpatialPoints(temp.grid, proj4string = CRS(proj4string(iquitos)))
 iquitos.grid <- iquitos.grid.full[iquitos,]
@@ -516,7 +508,7 @@ for (i in seq(length(G120.interp$x))) {
     }
 }
 
-tiff(filename = paste0("~/Desktop/moz_age_dist_het/IRS_G120s_",
+tiff(filename = paste0("./moz_age_dist_het/IRS_G120s_",
                        day,".tif"),
      width = 4000, height = 4000,
      compression = "lzw", res = 600)
